@@ -57,7 +57,10 @@ export class MemStorage implements IStorage {
       ...insertRequest, 
       id,
       createdAt: now,
-      updatedAt: now
+      updatedAt: now,
+      status: insertRequest.status || 'pending',
+      userName: insertRequest.userName || null,
+      userId: insertRequest.userId || null
     };
     this.requestsData.set(id, request);
     return request;
@@ -98,8 +101,20 @@ export class SupabaseStorage implements IStorage {
       throw new Error("DATABASE_URL environment variable is not set");
     }
     
-    const sql = neon(process.env.DATABASE_URL);
-    this.db = drizzle(sql);
+    try {
+      // Vérifie que l'URL est au bon format (postgresql://...)
+      const dbUrl = process.env.DATABASE_URL;
+      if (!dbUrl.startsWith('postgresql://')) {
+        throw new Error("DATABASE_URL should start with postgresql://");
+      }
+      
+      // Créer la connexion
+      const client = neon(dbUrl);
+      this.db = drizzle(client);
+    } catch (error) {
+      console.error('Error connecting to database:', error);
+      throw new Error('Failed to connect to database. Make sure the URL format is correct: postgresql://user:password@host.tld/dbname');
+    }
   }
 
   async getUser(id: number): Promise<User | undefined> {
@@ -124,6 +139,9 @@ export class SupabaseStorage implements IStorage {
   async createRequest(insertRequest: InsertRequest): Promise<Request> {
     const result = await this.db.insert(requests).values({
       ...insertRequest,
+      status: insertRequest.status || 'pending',
+      userName: insertRequest.userName || null,
+      userId: insertRequest.userId || null
     }).returning();
     return result[0];
   }
@@ -134,7 +152,7 @@ export class SupabaseStorage implements IStorage {
 
   async getRequestsByStatus(status: string): Promise<Request[]> {
     return await this.db.select().from(requests)
-      .where(({ and, eq }) => and(eq(requests.status, status)))
+      .where(eq(requests.status, status))
       .orderBy(requests.createdAt);
   }
 
@@ -144,7 +162,7 @@ export class SupabaseStorage implements IStorage {
         status, 
         updatedAt: new Date() 
       })
-      .where(({ and, eq }) => and(eq(requests.id, id)))
+      .where(eq(requests.id, id))
       .returning();
     
     return result[0];
@@ -152,6 +170,6 @@ export class SupabaseStorage implements IStorage {
 }
 
 // Export appropriate storage based on environment
-export const storage = process.env.NODE_ENV === 'production' && process.env.DATABASE_URL
+export const storage = process.env.DATABASE_URL
   ? new SupabaseStorage()
   : new MemStorage();
