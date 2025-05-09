@@ -4,6 +4,7 @@ import {
 } from "@shared/schema";
 import { drizzle } from "drizzle-orm/neon-serverless";
 import { neon } from "@neondatabase/serverless";
+import { eq } from "drizzle-orm";
 
 // Interface for the storage
 export interface IStorage {
@@ -102,15 +103,15 @@ export class SupabaseStorage implements IStorage {
   }
 
   async getUser(id: number): Promise<User | undefined> {
-    const result = await this.db.select().from(users).where(({ and, eq }) => 
-      and(eq(users.id, id))
+    const result = await this.db.select().from(users).where(
+      eq(users.id, id)
     );
     return result[0];
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    const result = await this.db.select().from(users).where(({ and, eq }) => 
-      and(eq(users.username, username))
+    const result = await this.db.select().from(users).where(
+      eq(users.username, username)
     );
     return result[0];
   }
