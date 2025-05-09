@@ -144,7 +144,7 @@ export const RequestProvider = ({ children }: RequestProviderProps) => {
       toast({
         title: 'Request Approved',
         description: 'The request has been approved and stored in the database.',
-        variant: 'default',
+        variant: 'success',
       });
     } catch (error) {
       console.error('Error approving request:', error);
@@ -167,7 +167,7 @@ export const RequestProvider = ({ children }: RequestProviderProps) => {
       toast({
         title: 'Request Rejected',
         description: 'The request has been rejected and will not be stored in the database.',
-        variant: 'default',
+        variant: 'info',
       });
     } catch (error) {
       console.error('Error rejecting request:', error);
