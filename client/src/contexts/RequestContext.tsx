@@ -1,7 +1,7 @@
 import { createContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { PendingRequest } from '@shared/schema';
 import { useToast } from '@/hooks/use-toast';
-import { subscribeToChannel } from '@/lib/pusher';
+import { subscribeToEvent, initWebSocket } from '@/lib/websocket';
 import { apiRequest } from '@/lib/queryClient';
 import { queryClient } from '@/lib/queryClient';
 
@@ -53,20 +53,38 @@ export const RequestProvider = ({ children }: RequestProviderProps) => {
     fetchPendingRequests();
   }, []);
 
-  // Subscribe to Pusher channels for real-time updates
+  // Subscribe to WebSocket events for real-time updates
   useEffect(() => {
     let cleanupNewRequest: (() => void) | null = null;
     let cleanupApproved: (() => void) | null = null;
     let cleanupRejected: (() => void) | null = null;
+    let cleanupInitialRequests: (() => void) | null = null;
 
-    const setupPusher = async () => {
+    const setupWebSocket = async () => {
+      // Initialize WebSocket connection
+      await initWebSocket();
+      
+      // Handle initial requests data
+      cleanupInitialRequests = subscribeToEvent('initial-requests', (data) => {
+        if (data && data.pending && Array.isArray(data.pending)) {
+          setPendingRequests(data.pending);
+        }
+      });
+      
       // Subscribe to 'new-request' events
-      cleanupNewRequest = await subscribeToChannel('requests', 'new-request', (data: PendingRequest) => {
+      cleanupNewRequest = subscribeToEvent('new-request', (data: PendingRequest) => {
         setPendingRequests(prev => [data, ...prev]);
+        
+        // Show notification for admins
+        toast({
+          title: "New Request",
+          description: `A new request "${data.title}" has been submitted.`,
+          variant: "default",
+        });
       });
 
       // Subscribe to 'request-approved' events
-      cleanupApproved = await subscribeToChannel('requests', 'request-approved', (data: PendingRequest) => {
+      cleanupApproved = subscribeToEvent('request-approved', (data: PendingRequest) => {
         setPendingRequests(prev => prev.filter(req => req.id !== data.id));
         setApprovedRequests(prev => [data, ...prev]);
         
@@ -84,7 +102,7 @@ export const RequestProvider = ({ children }: RequestProviderProps) => {
       });
 
       // Subscribe to 'request-rejected' events
-      cleanupRejected = await subscribeToChannel('requests', 'request-rejected', (data: PendingRequest) => {
+      cleanupRejected = subscribeToEvent('request-rejected', (data: PendingRequest) => {
         setPendingRequests(prev => prev.filter(req => req.id !== data.id));
         setRejectedRequests(prev => [data, ...prev]);
         
@@ -99,15 +117,16 @@ export const RequestProvider = ({ children }: RequestProviderProps) => {
       });
     };
 
-    setupPusher();
+    setupWebSocket();
 
     // Cleanup subscriptions on unmount
     return () => {
       if (cleanupNewRequest) cleanupNewRequest();
       if (cleanupApproved) cleanupApproved();
       if (cleanupRejected) cleanupRejected();
+      if (cleanupInitialRequests) cleanupInitialRequests();
     };
-  }, []);
+  }, [toast]);
 
   // Add a new user request
   const addUserRequest = useCallback((request: PendingRequest) => {
@@ -125,7 +144,7 @@ export const RequestProvider = ({ children }: RequestProviderProps) => {
       toast({
         title: 'Request Approved',
         description: 'The request has been approved and stored in the database.',
-        variant: 'success',
+        variant: 'default',
       });
     } catch (error) {
       console.error('Error approving request:', error);
@@ -148,7 +167,7 @@ export const RequestProvider = ({ children }: RequestProviderProps) => {
       toast({
         title: 'Request Rejected',
         description: 'The request has been rejected and will not be stored in the database.',
-        variant: 'success',
+        variant: 'default',
       });
     } catch (error) {
       console.error('Error rejecting request:', error);
