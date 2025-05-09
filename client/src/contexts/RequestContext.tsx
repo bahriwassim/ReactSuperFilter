@@ -79,7 +79,7 @@ export const RequestProvider = ({ children }: RequestProviderProps) => {
         toast({
           title: "New Request",
           description: `A new request "${data.title}" has been submitted.`,
-          variant: "default",
+          variant: "info",
         });
       });
 
